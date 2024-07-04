@@ -5,28 +5,41 @@ This is a simple guide to setting up a Django project with Docker using `venv`, 
 The settings will prepare the project to work with a PostgreSQL database as well as having both development `default.py` and `production.py` settings files.  
 
 
-## 1. *Creating a virtual environment:*
+## 1. Creating a workspace:
+
+**NOTE:** *Skip this step if you already have a Django project or using this repository.*  
+
+```bash
+mkdir <project_name>
+cd <project_name>
+```
+
+
+## 2. *Creating a virtual environment:*
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
 
-python -V
+## 3. *Installing Django and other packages:*
 
+```bash
 pip install --upgrade pip
 
-pip install django psycopg2-binary gunicorn
+pip install django
+pip install psycopg2-binary
 
 pip freeze > requirements.txt
 ```
 
-**Note:** *The `psycopg2-binary` package is not recommended for use in a production environment. It is only for development and testing purposes.*  
+**NOTE 1:** *The `psycopg2-binary` package is not recommended for use in a production environment. It is only for development and testing purposes. We install it here since `psycopg2` cant be installed on school computers.*    
 
-**Also note:** *The `psycopg2` package requires the `libpq-dev` package to be installed on the system. If it is not installed, the package will not be installed. !!! This is the case for school computers !!!*  
+**NOTE 2:** *The `psycopg2` package requires the `libpq-dev` package to be installed on the system (sudo access required). If it is not installed, the package will not be installed. !!! This is the case for school computers !!!*  
 
 *However, running this in a docker container will not cause any problems. So, just replace `psycopg2-binary` with `psycopg2` in the `requirements.txt` file to run the project in a docker container.*
 
-*The content of `requirements.txt` file:*
+## 4. *Modifying the content of `requirements.txt` file (these are necessary dependencies only):*
 
 ```txt
 Django>=5.0
@@ -35,18 +48,25 @@ gunicorn>=22.0
 psycopg2>=2.9
 ```
 
+*This file will be used to install the necessary packages in the Docker container.*  
 
-## 2. *Django project:*
+*Packages listed here are the only necessary dependencies for the project start to run with `postgresql` as database. You can add more packages as needed.*  
 
-**Skip this if Django project already exist**
+
+## 5. *Creating new Django project:*
+
+**NOTE:** *Skip this if Django project already exist*
 
 ```bash
-django-admin startproject _server .
+django-admin startproject my_project
 ```
 
-*In the `_server` directory, create a folder called `settings` and move the `settings.py` file to it.*
 
-*In the `_server/settings` directory, create a file called `__init__.py`:*
+## 6. *Split the settings file into development and production settings:*  
+
+*In the `_server` directory, create a folder called `settings` and move the `settings.py` file to it and create another `__init__.py` file in `settings` folder.*
+
+*Adding the following to the `_server/settings/__init__.py`:*
 
 ```python
 import os
@@ -61,16 +81,16 @@ else:
 
 ```
 
-*This will distinguish between the development and production settings.*  
+*This will  allow us to switch between the development and production settings when needed.*  
 
-*In the `_server/settings` directory, rename the `settings.py` file to `default.py`. Then duplicate it and rename the copy to `production.py`.*  
+*In the `_server/settings` directory, rename the `settings.py` file to `default.py`. Then duplicate it. Than rename the copy to `production.py`.*  
 
 **Modify the `production.py` file:**
 
 ```python
 ...
 # Adding the get_secret function:
-from _server.settings import get_secret
+from . import get_secret
 ...
 # Modify the settings:
 
@@ -96,7 +116,7 @@ DATABASES = {
 ```
 
 
-## 3. *Crafting Dockerfile:*
+## 7. *Crafting Dockerfile:*
 
 *Creating `Dockerfile` in the root directory:*  
 
@@ -115,19 +135,18 @@ EXPOSE ${PORT}
 ```
 
 
-## 4. *Creating `.env` file in the root directory (example):*  
+## 8. *Creating `.env` file in the root directory (example):*  
 
 ```txt
-# This file contains all the environment variables that are used in the project
-
+# for Docker container:
 PYTHONBUFFERED=1
 PORT=8000
 
-# Django variables
+# for Django settings:
 PIPELINE=production
 SECRET_KEY=your_secret_key
 
-# postgresql variables
+# for postgresql:
 DB_NAME=postgres
 DB_USER=postgres
 DB_PASSWORD=postgres
@@ -137,7 +156,11 @@ DB_PORT=5432
 ```
 
 
-## 5. *Creating `entrypoint.sh` file in the root directory:*  
+## 9. *Creating `entrypoint.sh` file in the root directory:*  
+
+*This file will be used to install the necessary packages in the Docker container.*
+
+*In the `entrypoint.sh` file, add the following script:*  
 
 ```bash
 #!/bin/bash
@@ -145,15 +168,27 @@ DB_PORT=5432
 # Exit on error
 set -e
 
+# Install psycopg2 dependencies (to use PostgreSQL with Django)
+apt-get update && apt-get install -y \
+	build-essential \
+	libpq-dev \
+	&& rm -rf /var/lib/apt/lists/* # this will clean up the apt-get cache
+
+# Upgrade pip
+pip install --upgrade pip
+
+# Install dependencies
+pip install -r requirements.txt
+
 # Start Gunicorn with the bind option using the PORT environment variable
-exec gunicorn _server.wsgi:application --bind 0.0.0.0:${PORT}
+exec gunicorn my_project.my_project.wsgi:application --bind 0.0.0.0:${PORT}
 ```
 
 
-## 6. *Next running Docker commands to build and run the image:*
+## 10. *Next running Docker commands to build and run the image:*
 
 ```bash
-docker build -t django-docker:latest .
+docker build --no-cache -t django-docker:latest .
 
 docker run -p 8000:8000 --env-file .env django-docker:latest
 ```
@@ -173,3 +208,22 @@ docker run -p 8000:8000 --env-file .env django-docker:latest
 *For sequrity reasons, the `.env` file should not be pushed to the repository !!!*  
 *But you already know that, right?*  
 
+**Project structure:**  
+
+```txt
+repository/
+|── my_project/
+|	├── my_project/
+|	│   ├── settings/
+|	│   │   ├── __init__.py
+|	│   │   ├── default.py
+|	│   │   └── production.py
+|	│   ├── __init__.py
+|	│   ├── urls.py
+|	│   └── wsgi.py
+|	├── manage.py
+|── .env
+|── Dockerfile
+|── entrypoint.sh
+|── requirements.txt
+```
