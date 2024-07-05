@@ -35,9 +35,9 @@ pip freeze > requirements.txt
 
 **NOTE 1:** *The `psycopg2-binary` package is not recommended for use in a production environment. It is only for development and testing purposes. We install it here since `psycopg2` cant be installed on school computers.*    
 
-**NOTE 2:** *The `psycopg2` package requires the `libpq-dev` package to be installed on the system (sudo access required). If it is not installed, the package will not be installed. !!! This is the case for school computers !!!*  
+**NOTE 2:** *The `psycopg2` package requires the `libpq-dev` package to be installed on the system (sudo access required) !!! Not the case for school dumps !!!*  
 
-*However, running this in a docker container will not cause any problems. So, just replace `psycopg2-binary` with `psycopg2` in the `requirements.txt` file to run the project in a docker container.*
+*However, running this in a docker container will not cause any problems. So, just replace `psycopg2-binary` with `psycopg2` in the `requirements.txt` file to have it installed in a docker container. Prior dependencies needed.. (see `entrypoint.sh` bellow for more details)*
 
 ## 4. *Modifying the content of `requirements.txt` file (these are necessary dependencies only):*
 
@@ -48,9 +48,9 @@ gunicorn>=22.0
 psycopg2>=2.9
 ```
 
-*This file will be used to install the necessary packages in the Docker container.*  
+*This file will be used to install basic project dependencies in the Docker container.*  
 
-*Packages listed here are the only necessary dependencies for the project start to run with `postgresql` as database. You can add more packages as needed.*  
+*Packages listed here are the only necessary dependencies (to use `postgresql` as database). You can add more packages as needed.*  
 
 
 ## 5. *Creating new Django project:*
@@ -64,9 +64,9 @@ django-admin startproject my_project
 
 ## 6. *Split the settings file into development and production settings:*  
 
-*In the `_server` directory, create a folder called `settings` and move the `settings.py` file to it and create another `__init__.py` file in `settings` folder.*
+*In the `my_project/my_project` directory, create a folder called `settings` and move the `settings.py` file to it, as wella as create another `__init__.py` file in `settings` folder.*
 
-*Adding the following to the `_server/settings/__init__.py`:*
+*Adding the following to the `my_project/my_project/settings/__init__.py`:*
 
 ```python
 import os
@@ -81,9 +81,9 @@ else:
 
 ```
 
-*This will  allow us to switch between the development and production settings when needed.*  
+*This will allow us to switch between the development and production settings when needed, using `PIPELINE` variable defined in `.env` file*  
 
-*In the `_server/settings` directory, rename the `settings.py` file to `default.py`. Then duplicate it. Than rename the copy to `production.py`.*  
+*In the `my_project/my_project/settings` directory, rename the `settings.py` file to `default.py`. Then duplicate it. Than rename the copy to `production.py`.*  
 
 **Modify the `production.py` file:**
 
@@ -181,7 +181,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Start Gunicorn with the bind option using the PORT environment variable
-exec gunicorn my_project.my_project.wsgi:application --bind 0.0.0.0:${PORT}
+cd my_project
+exec gunicorn my_project.wsgi:application --bind 0.0.0.0:${PORT}
 ```
 
 
@@ -193,14 +194,17 @@ docker build --no-cache -t django-docker:latest .
 docker run -p 8000:8000 --env-file .env django-docker:latest
 ```
 
+*The second command will take a while to run, as it will install the necessary packages in the Docker container.*  
+
 
 *Once the container is running, the Django project will be accessible at `http://localhost:8000`.*  
 
 
 **NOTE:** *To push the project as a repository to GitHub, add the following to the `.gitignore` file:*  
 
+*In the root directory, create `.gitignore` file:*
+
 ```txt
-# .gitignore
 .venv
 .env
 ```
@@ -208,10 +212,12 @@ docker run -p 8000:8000 --env-file .env django-docker:latest
 *For sequrity reasons, the `.env` file should not be pushed to the repository !!!*  
 *But you already know that, right?*  
 
+
 **Project structure:**  
 
 ```txt
-repository/
+(root)repository/
+|
 |── my_project/
 |	├── my_project/
 |	│   ├── settings/
