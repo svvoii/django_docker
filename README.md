@@ -218,6 +218,7 @@ docker run -p 8000:8000 --env-file .env django-docker:latest
 ```txt
 (root)repository/
 |
+|── .venv/..
 |── my_project/
 |	├── my_project/
 |	│   ├── settings/
@@ -229,6 +230,7 @@ docker run -p 8000:8000 --env-file .env django-docker:latest
 |	│   └── wsgi.py
 |	├── manage.py
 |── .env
+|── .gitignore
 |── Dockerfile
 |── entrypoint.sh
 |── requirements.txt
